@@ -1,0 +1,11 @@
+^.devcontainer/
+^.git/
+^.github/
+^.gitignore$
+^.vscode/
+^.*\.tar.gz
+^Makefile$
+^MANIFEST\.
+^README\.md$
+^blib/
+^pm_to_blib$
