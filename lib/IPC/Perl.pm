@@ -6,12 +6,16 @@ use utf8;
 
 use Data::Dumper;
 use Exporter 'import';
+use IPC::Perl::Task;
 use Log::Log4perl;
-use POSIX ':sys_wait_h';
 use Time::HiRes 'usleep';
 
 our @EXPORT_OK = qw(default_runner);
 our @EXPORT = @EXPORT_OK;
+
+our @CARP_NOT = 'IPC::Perl::Task';
+
+our $VERSION = '0.01';
 
 my $log = Log::Log4perl->get_logger();
 
@@ -22,6 +26,7 @@ sub new {
       max_parallel_tasks => $options{max_parallel_tasks} // 1,
       parallelize => $options{parallelize} // 1,
       current_tasks => 0,
+      zombie => [],
     }, $class;
   return $this;
 }
@@ -41,7 +46,7 @@ sub _fork_and_run {
   my $task_id = $task_count++;
   my $pid = fork();
   $this->{current_tasks}++ unless $options{untracked};
-  $log->logdie "Cannot fork a sub-process" unless defined $pid;
+  $log->logdie("Cannot fork a sub-process") unless defined $pid;
 
   if ($pid == 0) {
     # In the child task
@@ -57,7 +62,7 @@ sub _fork_and_run {
 
     close $tracker_o;
     close $response_i;
-    $log->trace "Starting child task (id == ${task_id}) in process ${$}";
+    $log->trace("Starting child task (id == ${task_id}) in process ${$}");
     my @out;
     if ($options{scalar}) {
       @out = scalar($sub->());
@@ -74,7 +79,7 @@ sub _fork_and_run {
     }
     my $size = length($serialized_out);
     my $max_size = 4096;  # This is a very conservative estimates. On modern system the limit is 64kB.
-    warning "Data returned by process ${$} for task ${task_id} is too large (%dB)", $size if $size > $max_size;
+    $log->warn(sprintf("Data returned by process ${$} for task ${task_id} is too large (%dB)", $size)) if $size > $max_size;
     # Nothing will be read before the process terminate, so the data
     print $response_o scalar(Dumper(\@out));
     # This is used to not finish the task before the children data-structure
@@ -84,24 +89,23 @@ sub _fork_and_run {
     # returns (call exec) but, in practice it probably does not matter.
     scalar(<$tracker_i>);
     close $tracker_i;
-    full_debug "Exiting child task (id == ${task_id}) in process ${$}";
+    $log->trace("Exiting child task (id == ${task_id}) in process ${$}");
     exit 0;
   }
 
   # Still in the parent task
-  full_debug "Started child task (id == ${task_id}) with pid == ${pid}";
+  $log->trace("Started child task (id == ${task_id}) with pid == ${pid}");
   close $tracker_i;
   close $response_o;
-  my $task = App::ArduinoBuilder::CommandRunner::Task->new(
+  my $task = IPC::Perl::Task->new(
     untracked => $options{untracked},
     task_id => $task_id,
     runner => $this,
-    running => 1,
+    state => 'running',
     channel => $response_i,
     pid => $pid,
     catch_error => $options{catch_error},
   );
-  $children{$pid} = $task;
   if (exists $options{SIG}) {
     my $ready = <$response_i>;
     die "Got unexpected data during ready check: $ready" unless $ready eq "ready\n";
@@ -109,9 +113,9 @@ sub _fork_and_run {
   print $tracker_o "ignored\n";
   close $tracker_o;
   if ($options{wait}) {
-    full_debug "Waiting for child $pid to exit (task id == ${task_id})";
+    $log->trace("Waiting for child $pid to exit (task id == ${task_id})");
     $task->wait();
-    full_debug "Ok, child $pid exited (task id == ${task_id})";
+    $log->trace("Ok, child $pid exited (task id == ${task_id})");
   }
   return $task;
 }
@@ -122,6 +126,7 @@ sub run_forked {
   my ($this, $sub, %options) = @_;
   $options{scalar} = 1 unless exists $options{scalar} || wantarray;
   my $task = $this->_fork_and_run($sub, %options, untracked => 1, wait => 1);
+  $task->wait();
   return $task->data();
 }
 
@@ -138,7 +143,7 @@ sub wait {
   my ($this) = @_;
   my $c = $this->{current_tasks};
   return unless $c;
-  debug "Waiting for ${c} running tasks...";
+  $log->debug("Waiting for ${c} running tasks...");
   usleep(1000) until $this->{current_tasks} == 0;
 }
 

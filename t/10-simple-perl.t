@@ -4,19 +4,22 @@ use utf8;
 
 use Test2::V0;
 
-use App::ArduinoBuilder::CommandRunner;
+use Log::Log4perl ':easy';
+use IPC::Perl;
 
 use FindBin;
 use IO::Pipe;
 
+Log::Log4perl->easy_init($TRACE);
+
 sub new {
-  return App::ArduinoBuilder::CommandRunner->new(@_);
+  return IPC::Perl->new(@_);
 }
 
 {
   pipe my $fi1, my $fo1;  # from parent to child
   pipe my $fi2, my $fo2;  # from child to parent
-  new(max_parallel_tasks => 4)->execute(sub {
+  my $t = new(max_parallel_tasks => 4)->execute(sub {
     close $fo1;
     close $fi2;
     my $v = <$fi1>;
