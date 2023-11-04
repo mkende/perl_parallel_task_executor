@@ -2,15 +2,11 @@ use strict;
 use warnings;
 use utf8;
 
-use Test2::V0;
-
-use Log::Log4perl ':easy';
-use IPC::Perl;
-
 use FindBin;
 use IO::Pipe;
-
-Log::Log4perl->easy_init($TRACE);
+use IPC::Perl;
+use Log::Log4perl::CommandLine qw(:all :logcategory root);
+use Test2::V0;
 
 sub new {
   return IPC::Perl->new(@_);

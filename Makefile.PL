@@ -17,7 +17,8 @@ WriteMakefile(
     'ExtUtils::MakeMaker' => '0',
   },
   PREREQ_PM => {
-    'Log::Log4perl'    => '1.57',
+    'Log::Log4perl'              => '1.57',
+    'Log::Log4perl::CommandLine' => '0',
   },
   TEST_REQUIRES => {
     'Test2::V0'             => 0,
