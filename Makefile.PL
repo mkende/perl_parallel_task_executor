@@ -28,7 +28,7 @@ WriteMakefile(
       dynamic_config => 0,
       no_index => {
         directory => [ 'local', 'vendor', 't' ],
-},
+      },
       keywords => ['promise','executor','fork','open2','open3','run','ipc',],
       resources => {
         repository => {

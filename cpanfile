@@ -24,9 +24,13 @@ on 'test' => sub {
 # Devel::Cover has many dependencies.
 on 'develop' => sub {
   recommends 'Devel::Cover';
+  suggests 'CPAN::Uploader';
 };
 
 # End of the template. You can add custom content below this line.
 
 requires 'Log::Log4perl';
-requires 'Log::Log4perl::CommandLine';
+
+on 'test' => sub {
+  requires 'Log::Log4perl::CommandLine';
+};
