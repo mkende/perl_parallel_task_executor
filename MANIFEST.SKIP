@@ -25,8 +25,8 @@
 ^t/001-spelling.t
 ^third_party/
 ^pm_to_blib$
-^IPC-Perl-[\d.]+/
-^IPC-Perl-[\d.]+\.tar\.gz
+^Parallel-TaskExecutor-[\d.]+/
+^Parallel-TaskExecutor-[\d.]+\.tar\.gz
 .*\.bak
 
 # End of the template. You can add custom content below this line.

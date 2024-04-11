@@ -1,4 +1,4 @@
-package IPC::Perl::Task;
+package Parallel::TaskExecutor::Task;
 
 use strict;
 use warnings;
@@ -13,14 +13,15 @@ my $log = Log::Log4perl->get_logger();
 
 sub new {
   my ($class, %data) = @_;
-  # %data can be anything that is needed by IPC::Perl. However the following
-  # values are used by IPC::Perl::Task too:
+  # %data can be anything that is needed by Parallel::TaskExecutor. However the
+  # following values are used by Parallel::TaskExecutor::Task too:
   # - state: one of new, running, done
   # - pid: the PID of the task
   # - parent: the PID of the parent process. We don’t do anything if we’re
   #   called in a different process.
   # - task_id: arbitrary identifier for the task
-  # - runner: IPC::Perl runner for this task, kept as a weak reference
+  # - runner: Parallel::TaskExecutor runner for this task, kept as a weak
+  #   reference
   # - untracked: don’t count this task toward the task limit of its runner
   # - catch_error: if false, a failed task will abort the parent.
   # - channel: may be set to read the data produced by the task
@@ -68,12 +69,17 @@ sub done {
   return $this->{state} eq 'done';
 }
 
+sub get {
+  my ($this) = @_;
+  $this->wait();
+  return $this->data();
+}
+
 sub _try_wait {
   my ($this) = @_;
   return if $this->{state} ne 'running';
   local ($!, $?);
   $this->{log}->trace("Starting non blocking waitpid($this->{pid})");
-  print "Starting non blocking waitpid($this->{pid})";
   if ((my $pid = waitpid($this->{pid}, WNOHANG)) > 0 ) {
     $this->_process_done();
   }

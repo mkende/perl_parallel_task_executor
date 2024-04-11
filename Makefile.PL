@@ -9,11 +9,11 @@ use warnings;
 use ExtUtils::MakeMaker::CPANfile;
 
 WriteMakefile(
-    NAME             => 'IPC::Perl',
-    DISTNAME         => 'IPC-Perl',
+    NAME             => 'Parallel::TaskExecutor',
+    DISTNAME         => 'Parallel-TaskExecutor',
     AUTHOR           => q{Mathias Kende <mathias@cpan.org>},
-    VERSION_FROM     => 'lib/IPC/Perl.pm',
-    ABSTRACT         => q{Cross-platform IPC system supporting child Perl procedures},
+    VERSION_FROM     => 'lib/Parallel/TaskExecutor.pm',
+    ABSTRACT         => q{Cross-platform executor for parallel tasks executed in forked processes},
     LICENSE          => 'mit',
     MIN_PERL_VERSION => '5.022',
     MAN3PODS         => {},
@@ -27,22 +27,22 @@ WriteMakefile(
       # Goes with NO_MYMETA (which would provide the dynamic config).
       dynamic_config => 0,
       no_index => {
-        directory => [ 'local', 'vendor' ],
-      },
-      keywords => ['ipc','open2','open3','run',],
+        directory => [ 'local', 'vendor', 't' ],
+},
+      keywords => ['promise','executor','fork','open2','open3','run','ipc',],
       resources => {
         repository => {
           type => 'git',
-          url => 'git@github.com:mkende/ipc_perl.git',
-          web => 'https://github.com/mkende/ipc_perl',
+          url => 'git@github.com:mkende/perl_parallel_task_executor.git',
+          web => 'https://github.com/mkende/perl_parallel_task_executor',
         },
         bugtracker => {
-          web => 'https://github.com/mkende/ipc_perl/issues',
+          web => 'https://github.com/mkende/perl_parallel_task_executor/issues',
         },
       },
     },
     dist  => { COMPRESS => 'gzip -9f', SUFFIX => '.gz', },
-    clean => { FILES => 'IPC-Perl-*' },
+    clean => { FILES => 'Parallel-TaskExecutor-*' },
 );
 
 sub MY::postamble {

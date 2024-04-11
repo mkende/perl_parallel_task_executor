@@ -4,18 +4,18 @@ use utf8;
 
 use FindBin;
 use IO::Pipe;
-use IPC::Perl;
+use Parallel::TaskExecutor;
 use Log::Log4perl::CommandLine qw(:all :logcategory root);
 use Test2::V0;
 
 sub new {
-  return IPC::Perl->new(@_);
+  return Parallel::TaskExecutor->new(@_);
 }
 
 {
   pipe my $fi1, my $fo1;  # from parent to child
   pipe my $fi2, my $fo2;  # from child to parent
-  my $t = new(max_parallel_tasks => 4)->execute(sub {
+  my $t = new(max_parallel_tasks => 4)->run(sub {
     close $fo1;
     close $fi2;
     my $v = <$fi1>;
@@ -62,7 +62,7 @@ sub new {
 
 
 {
-  my $task = new()->execute(sub {
+  my $task = new()->run(sub {
     return 'test';
   });
   $task->wait();
@@ -71,7 +71,7 @@ sub new {
 
 {
   pipe my $fi, my $fo;  # from parent to child
-  my $task = new()->execute(sub {
+  my $task = new()->run(sub {
     close $fo;
     <$fi>;
   });
@@ -86,7 +86,7 @@ sub new {
 {
   pipe my $fi, my $fo;  # from parent to child
   # This never returns, but the task is still processed correctly.
-  my $task = new()->execute(sub {
+  my $task = new()->run(sub {
     close $fo;
     <$fi>;
     exec $^X, '-e', 'use Time::HiRes "usleep"; usleep(1000)';
@@ -99,7 +99,7 @@ sub new {
 }
 
 {
-  my $task = new()->execute(sub {
+  my $task = new()->run(sub {
     sleep 1 while 1;
   }, catch_error => 1);
   kill 'INT', $task->pid();
@@ -110,8 +110,7 @@ sub new {
 
 {
   my $mosi = IO::Pipe->new();  # from parent to child
-  my $miso = IO::Pipe->new();
-  my $task = new()->execute(sub {
+  my $task = new()->run(sub {
     $mosi->reader();
     $mosi->read(my $buf, 1);
   }, SIG => { INT => 'IGNORE'});
