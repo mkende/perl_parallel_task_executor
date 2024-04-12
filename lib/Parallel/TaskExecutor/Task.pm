@@ -7,7 +7,8 @@ use utf8;
 use English;
 use Log::Log4perl;
 use POSIX ':sys_wait_h';
-use Scalar::Util 'weaken';
+
+our $VERSION = '0.01';
 
 my $log = Log::Log4perl->get_logger();
 
@@ -26,7 +27,6 @@ sub new {
   # - catch_error: if false, a failed task will abort the parent.
   # - channel: may be set to read the data produced by the task
   # - data: will contain the data read from the channel.
-  weaken($data{runner});
   return bless {%data, log => $log}, $class;
 }
 
@@ -38,22 +38,24 @@ sub DESTROY {
   if ($this->running()) {
     if ($this->{runner}) {
       $this->{log}->trace("Deferring reaping of task $this->{task_id}");
+      delete $this->{runner}{tasks}{$this};
       push @{$this->{runner}{zombies}}, $this;
     } else {
       $this->wait();
     }
   }
+  return;
 }
 
 sub data {
   my ($this) = @_;
-  $this->{log}->logcroak("Trying to read the data of a still running task") unless $this->done();
-  die $this->{error} if exists $this->{error};
-  # TODO: we should have a variant for undef wantarray that does not setup
-  # the whole pipe to get the return data.
-  # Note: wantarray here is not necessarily the same as when the task was set
-  # up, it is the responsibility of the caller to set the 'scalar' option
-  # correctly.
+  $this->{log}->logcroak('Trying to read the data of a still running task') unless $this->done();
+  die $this->{error} if exists $this->{error};  ## no critic (RequireCarping)
+                                                # TODO: we should have a variant for undef wantarray that does not setup
+                                                # the whole pipe to get the return data.
+                                                # Note: wantarray here is not necessarily the same as when the task was set
+                                                # up, it is the responsibility of the caller to set the 'scalar' option
+                                                # correctly.
   return wantarray ? @{$this->{data}} : $this->{data}[0];
 }
 
@@ -78,46 +80,57 @@ sub get {
 sub _try_wait {
   my ($this) = @_;
   return if $this->{state} ne 'running';
-  local ($!, $?);
   $this->{log}->trace("Starting non blocking waitpid($this->{pid})");
-  if ((my $pid = waitpid($this->{pid}, WNOHANG)) > 0 ) {
+  local ($ERRNO, $CHILD_ERROR) = (0, 0);
+  if ((my $pid = waitpid($this->{pid}, WNOHANG)) > 0) {
     $this->_process_done();
   }
+  return;
 }
 
-sub wait {
+sub wait {  ## no critic (ProhibitBuiltinHomonyms)
   my ($this) = @_;
   return if $this->{state} eq 'done';
-  $this->{log}->logdie("Can’t wait for a task that has not yet started") if $this->{state} eq 'new';
-  local ($!, $?);
+  $this->{log}->logdie('Can’t wait for a task that has not yet started') if $this->{state} eq 'new';
   $this->{log}->trace("Starting blocking waitpid($this->{pid})");
+  local ($ERRNO, $CHILD_ERROR) = (0, 0);
   my $ret = waitpid($this->{pid}, 0);
   $this->{log}->logdie("No children with pid $this->{pid} for task $this->{task_id}") if $ret == -1;
-  $this->{log}->logdie("Incoherent PID returned by waitpid: actual $ret; expected $this->{pid} for task $this->{task_id}") if $ret != $this->{pid};  
+  $this->{log}->logdie(
+    "Incoherent PID returned by waitpid: actual $ret; expected $this->{pid} for task $this->{task_id}"
+  ) if $ret != $this->{pid};
   $this->_process_done();
   return $this->{error} ? 0 : 1;
 }
 
 sub _process_done {
   my ($this) = @_;
-  $this->{runner}{current_tasks}-- if $this->{runner} && !$this->{untracked};
-  if ($?) {
+  if ($this->{runner}) {
+    $this->{runner}{current_tasks}-- unless $this->{untracked};
+    delete $this->{task}{$this};
+  }
+  if ($CHILD_ERROR) {
     if ($this->{catch_error}) {
-      $this->{error} = "Child command failed: $?";
+      $this->{error} = "Child command failed: ${CHILD_ERROR}";
     } else {
       # Ideally, we should first wait for all child processes of all runners
       # before dying, to print the dying message last.
-      $this->{log}->logdie("Child process (pid == $this->{pid}, task_id == $this->{task_id}) failed (${?})");
+      $this->{log}->logdie(
+        "Child process (pid == $this->{pid}, task_id == $this->{task_id}) failed (${CHILD_ERROR})");
     }
   } elsif ($this->{channel}) {
-    local $/;
+    local $INPUT_RECORD_SEPARATOR = undef;
     my $fh = $this->{channel};
     my $data = <$fh>;
-    close $fh;
-    no warnings;
-    no strict;
-    $this->{data} = eval $data;
-    $this->{log}->logdie("Cannot parse the output of child task $this->{task_id} (pid == $this->{pid}): $@") if $@;
+    close $fh or $this->{log}->logcluck("Cannot close task output channel: ${ERRNO}");
+    {
+      no strict;  ## no critic (ProhibitNoStrict)
+      no warnings;  ## no critic (ProhibitNoWarnings)
+      $this->{data} = eval $data;  ## no critic (ProhibitStringyEval)
+    }
+    $this->{log}->logdie(
+      "Cannot parse the output of child task $this->{task_id} (pid == $this->{pid}): ${EVAL_ERROR}")
+        if $EVAL_ERROR;
   }
   $this->{state} = 'done';
   $this->{log}->trace("Child pid == $this->{pid} returned (task id == $this->{task_id})");

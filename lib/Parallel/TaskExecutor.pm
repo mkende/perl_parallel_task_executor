@@ -7,12 +7,14 @@ use utf8;
 use Data::Dumper;
 use English;
 use Exporter 'import';
-use Parallel::TaskExecutor::Task;
 use Log::Log4perl;
+use Parallel::TaskExecutor::Task;
+use Readonly;
+use Scalar::Util 'weaken';
 use Time::HiRes 'usleep';
 
 our @EXPORT_OK = qw(default_executor);
-our @EXPORT = @EXPORT_OK;
+our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 our @CARP_NOT = 'Parallel::TaskExecutor::Task';
 
@@ -66,17 +68,19 @@ they will apply to all the calls to this object.
 
 =cut
 
+Readonly::Scalar my $default_max_parallel_tasks => 4;
+
 sub new {
   my ($class, %options) = @_;
-  my $this =
-    bless {
-      max_parallel_tasks => $options{max_parallel_tasks} // 4,
-      options => \%options,
-      current_tasks => 0,
-      zombies => [],
-      pid =>$PID,
-      log => $log,
-    }, $class;
+  my $this = bless {
+    max_parallel_tasks => $options{max_parallel_tasks} // $default_max_parallel_tasks,
+    options => \%options,
+    current_tasks => 0,
+    zombies => [],  # Store all the non-done tasks whose other reference went out of scope.
+    tasks => {},  # Stores all the non-done tasks, as a weak reference.
+    pid => $PID,
+    log => $log,
+  }, $class;
   return $this;
 }
 
@@ -99,6 +103,7 @@ sub DESTROY {
     # someone).
     $c->wait();
   }
+  return;
 }
 
 =pod
@@ -113,37 +118,40 @@ parallelism (guaranteed to be more than 1 parallel tasks).
 =cut
 
 my $default_executor = Parallel::TaskExecutor->new(max_parallel_tasks => 10);
+
 sub default_executor {
   return $default_executor;
 }
 
 my $task_count = 0;
 
+# This is a very conservative estimates. On modern system the limit is 64kB.
+Readonly::Scalar my $default_response_channel_buffer_size => 4096;
+
 sub _fork_and_run {
   my ($this, $sub, %options) = @_;
-  %options = (%{$this->{options}}, %options);
   pipe my $response_i, my $response_o;  # From the child to the parent.
   my $task_id = $task_count++;
   $this->{log}->trace("Will fork for task ${task_id}");
   my $pid = fork();
-  $this->{log}->logdie("Cannot fork a sub-process") unless defined $pid;
+  $this->{log}->logdie('Cannot fork a sub-process') unless defined $pid;
   $this->{current_tasks}++ unless $options{untracked};
 
   if ($pid == 0) {
     # In the child task
-    close $response_i;
-    $this->{log}->trace("Starting child task (id == ${task_id}) in process ${$}");
+    close $response_i
+        or $this->{log}->logcluck("Can’t close writer side of child task mosi channel: ${ERRNO}");
+    $this->{log}->trace("Starting child task (id == ${task_id}) in process ${PID}");
 
-    # $SIG{CHLD} = 'DEFAULT';
     if (exists $options{SIG}) {
       while (my ($k, $v) = each %{$options{SIG}}) {
-        $SIG{$k} = $v;
+        $SIG{$k} = $v;  ## no critic (RequireLocalizedPunctuationVars)
       }
     }
 
     print $response_o "ready\n";
     $response_o->flush();
-  
+
     my @out;
     if ($options{scalar}) {
       @out = scalar($sub->());
@@ -159,18 +167,23 @@ sub _fork_and_run {
       $serialized_out = Dumper(\@out);
     }
     my $size = length($serialized_out);
-    my $max_size = 4096;  # This is a very conservative estimates. On modern system the limit is 64kB.
-    $this->{log}->warn(sprintf("Data returned by process ${$} for task ${task_id} is too large (%dB)", $size)) if $size > $max_size;
+    my $max_size = $default_response_channel_buffer_size;
+    $this->{log}->warn(
+      sprintf(
+        "Data returned by process ${PID} for task ${task_id} is too large (%dB)", $size)
+    ) if $size > $max_size;
     # Nothing will be read before the process terminate, so the data
     print $response_o scalar($serialized_out);
-    close $response_o;
-    $this->{log}->trace("Exiting child task (id == ${task_id}) in process ${$}");
+    close $response_o
+        or $this->{log}->logcluck("Can’t close writer side of child task miso channel: ${ERRNO}");
+    $this->{log}->trace("Exiting child task (id == ${task_id}) in process ${PID}");
     exit 0;
   }
 
   # Still in the parent task
   $this->{log}->trace("Started child task (id == ${task_id}) with pid == ${pid}");
-  close $response_o;
+  close $response_o
+      or $this->{log}->logcluck("Can’t close writer side of parent process miso channel: ${ERRNO}");
   my $task = Parallel::TaskExecutor::Task->new(
     untracked => $options{untracked},
     task_id => $task_id,
@@ -179,16 +192,19 @@ sub _fork_and_run {
     channel => $response_i,
     pid => $pid,
     parent => $PID,
-    catch_error => $options{catch_error},
-  );
+    catch_error => $options{catch_error},);
+  weaken($task->{runner});
+  $this->{tasks}{$task} = $task;
+  weaken($this->{tasks}{$task});
 
   my $ready = <$response_i>;
-  die "Got unexpected data during ready check: $ready" unless $ready eq "ready\n";
+  $this->{log}->logcroak("Got unexpected data during ready check: $ready")
+      unless $ready eq "ready\n";
 
   if ($options{wait}) {
     $this->{log}->trace("Waiting for child $pid to exit (task id == ${task_id})");
     $task->wait();
-    $this->{log}->trace("Ok, child $pid exited (task id == ${task_id})");
+    $this->{log}->trace("OK, child $pid exited (task id == ${task_id})");
   }
   return $task;
 }
@@ -252,19 +268,37 @@ B<forced> is set to true too).
 
 =cut
 
+Readonly::Scalar my $busy_loop_wait_time_us => 1000;
+
 sub run {
   my ($this, $sub, %options) = @_;
-  %options = (%{$this}, %options);
+  %options = (%{$this->{options}}, %options);
   if (!$options{forced}) {
-    usleep(1000) until $this->{current_tasks} < $this->{max_parallel_tasks};
+    usleep($busy_loop_wait_time_us) while $this->{current_tasks} >= $this->{max_parallel_tasks};
   }
   return $this->_fork_and_run($sub, %options);
 }
 
+=pod
+
+=head2 run_now()
+
+  my $data = $executor->run_now($sub, %options);
+
+Runs the given I<$sub> in a forked process and waits for its result. This never
+block (the I<$sub> is run even if the executor max parallelism is already
+reached) and this does not increase the counted parallelism of the executor
+either (in effect the B<untracked>, B<forced>, and B<wait> options are set to
+true).
+
+In addition, the B<scalar> option is set to true if this method is called in
+scalar context, unless that option was explicitly passed to the run_now() call.
+
+=cut
 
 # Same as run but does not limit the parallelism and block until the command
 # has executed.
-sub run_forked {
+sub run_now {
   my ($this, $sub, %options) = @_;
   $options{scalar} = 1 unless exists $options{scalar} || wantarray;
   my $task = $this->_fork_and_run($sub, %options, untracked => 1, wait => 1);
@@ -272,19 +306,50 @@ sub run_forked {
   return $task->data();
 }
 
+=pod
 
-sub wait {
+=head2 wait()
+
+  $executor->wait();
+
+Waits for all the outstanding tasks to terminate. This waits for all the tasks
+independently of whether their L<Parallel::TaskExecutor::Task> object is still
+live.
+
+=cut
+
+sub wait {  ## no critic (ProhibitBuiltinHomonyms)
   my ($this) = @_;
-  my $c = $this->{current_tasks};
-  return unless $c;
-  $this->{log}->debug("Waiting for ${c} running tasks...");
-  usleep(1000) until $this->{current_tasks} == 0;
-  #TODO: should this also execute the zombie reaping?
+  my $nb_children = $this->{current_tasks};
+  return unless $nb_children;
+  $this->{log}->debug("Waiting for ${nb_children} running tasks...");
+  while (my $c = shift @{$this->{zombies}}) {
+    $c->wait();
+  }
+  while (my (undef, $c) = each %{$this->{tasks}}) {
+    # $c is a weak reference, but it is never undef because the task will remove
+    # itself from this hash in its DESTROY method.
+    # $c->wait() will delete this entry from the hash, but this is legal when
+    # looping with each.
+    $c->wait();
+  }
+  return;
 }
+
+=pod
+
+=head2 set_max_parallel_tasks()
+
+  $executor->set_max_parallel_tasks(N)
+
+Sets the B<max_parallel_tasks> option of the executor.
+
+=cut
 
 sub set_max_parallel_tasks {
   my ($this, $max_parallel_tasks) = @_;
   $this->{max_parallel_tasks} = $max_parallel_tasks;
+  return;
 }
 
 1;
@@ -293,7 +358,35 @@ sub set_max_parallel_tasks {
 
 =head1 AUTHOR
 
+This program has been written by L<Mathias Kende|mailto:mathias@cpan.org>.
+
 =head1 LICENSE
+
+Copyright 2024 Mathias Kende
+
+This program is distributed under the MIT (X11) License:
+L<http://www.opensource.org/licenses/mit-license.php>
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
 
 =head1 SEE ALSO
 

@@ -4,8 +4,8 @@ use utf8;
 
 use FindBin;
 use IO::Pipe;
+use Log::Log4perl::CommandLine;
 use Parallel::TaskExecutor;
-use Log::Log4perl::CommandLine qw(:all :logcategory root);
 use Test2::V0;
 
 sub new {
@@ -35,7 +35,7 @@ sub new {
 
 {
   pipe my $fi, my $fo;  # from child to parent
-  new()->run_forked(sub {
+  new()->run_now(sub {
     close $fi;
     print $fo "test\n";
     close $fo;
@@ -47,14 +47,14 @@ sub new {
 }
 
 {
-  my $data = new()->run_forked(sub {
+  my $data = new()->run_now(sub {
     return 'test';
   });
   is($data, 'test');
 }
 
 {
-  my @data = new()->run_forked(sub {
+  my @data = new()->run_now(sub {
     return qw(1 2 3);
   });
   is(\@data, [qw(1 2 3)]);

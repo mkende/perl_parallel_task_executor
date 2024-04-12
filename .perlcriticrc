@@ -57,3 +57,8 @@ minimum_regex_length_to_complain_about = 30
 [-RegularExpressions::RequireLineBoundaryMatching]
 
 # End of the template. You can add custom content below this line.
+
+# We add -1 to the default list as it’s a standard error return value from some
+# system library.
+[ValuesAndExpressions::ProhibitMagicNumbers]
+allowed_values = -1 0 1 2
