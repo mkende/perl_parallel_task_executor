@@ -6,11 +6,8 @@ use FindBin;
 use IO::Pipe;
 use Log::Log4perl::CommandLine ':all';
 use Parallel::TaskExecutor;
+use Test2::IPC;
 use Test2::V0;
-
-# TODO: Remove this line once the following issue is fixe:
-# https://github.com/Test-More/test-more/issues/928
-Test2::API::test2_load if $^O eq 'MSWin32';
 
 sub new {
   return Parallel::TaskExecutor->new(@_);
@@ -102,8 +99,8 @@ sub new {
   is ($task->running(), F());
 }
 
-# Signal handling by the pseudo-process under Windows are not completely
-# predictable. So we don’t execute these tests under windows.
+# Signal handling by the pseudo-processes under Windows is not completely
+# predictable. So we don’t execute these tests under Windows.
 unless ($^O eq 'MSWin32') {
   {
     my $task = new()->run(sub {
@@ -116,7 +113,7 @@ unless ($^O eq 'MSWin32') {
   }
 
   {
-    my $mosi = IO::Pipe->new();  # from parent to child
+    my $mosi = IO::Pipe->new();
     my $task = new()->run(sub {
       $mosi->reader();
       $mosi->read(my $buf, 1);
