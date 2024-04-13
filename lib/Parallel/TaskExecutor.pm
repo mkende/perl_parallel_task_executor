@@ -7,6 +7,7 @@ use utf8;
 use Data::Dumper;
 use English;
 use Exporter 'import';
+use IO::Pipe;
 use Log::Log4perl;
 use Parallel::TaskExecutor::Task;
 use Readonly;
@@ -97,6 +98,9 @@ which waits for a task to be done if its parent executor is no longer live.
 
 sub DESTROY {
   my ($this) = @_;
+  # TODO: consider if this is the correct thing to do or if we should instead
+  # wait for the task here.
+  return if ${^GLOBAL_PHASE} eq 'DESTRUCT';
   return unless $PID == $this->{pid};
   for my $c (@{$this->{zombies}}) {
     # TODO: add an option to abandon the children (but they must be awaited by
@@ -130,7 +134,7 @@ Readonly::Scalar my $default_response_channel_buffer_size => 4096;
 
 sub _fork_and_run {
   my ($this, $sub, %options) = @_;
-  pipe my $response_i, my $response_o;  # From the child to the parent.
+  my $miso = IO::Pipe->new();  # From the child to the parent.
   my $task_id = $task_count++;
   $this->{log}->trace("Will fork for task ${task_id}");
   my $pid = fork();
@@ -139,8 +143,7 @@ sub _fork_and_run {
 
   if ($pid == 0) {
     # In the child task
-    close $response_i
-        or $this->{log}->logcluck("Can’t close writer side of child task mosi channel: ${ERRNO}");
+    $miso->writer();
     $this->{log}->trace("Starting child task (id == ${task_id}) in process ${PID}");
 
     if (exists $options{SIG}) {
@@ -149,15 +152,18 @@ sub _fork_and_run {
       }
     }
 
-    print $response_o "ready\n";
-    $response_o->flush();
+    print $miso "ready\n";
+    $miso->flush();
 
     my @out;
+    $this->{log}->trace("Starting user code in child task (id == ${task_id}) in process ${PID}");
     if ($options{scalar}) {
       @out = scalar($sub->());
     } else {
       @out = $sub->();
     }
+    $this->{log}
+        ->trace("Serializing task result in child task (id == ${task_id}) in process ${PID}");
     my $serialized_out;
     {
       local $Data::Dumper::Indent = 0;
@@ -166,6 +172,7 @@ sub _fork_and_run {
       local $Data::Dumper::Varname = 'TASKEXECUTORVAR';
       $serialized_out = Dumper(\@out);
     }
+    $this->{log}->trace("Emitting task result in child task (id == ${task_id}) in process ${PID}");
     my $size = length($serialized_out);
     my $max_size = $default_response_channel_buffer_size;
     $this->{log}->warn(
@@ -173,8 +180,9 @@ sub _fork_and_run {
         "Data returned by process ${PID} for task ${task_id} is too large (%dB)", $size)
     ) if $size > $max_size;
     # Nothing will be read before the process terminate, so the data
-    print $response_o scalar($serialized_out);
-    close $response_o
+    print $miso scalar($serialized_out);
+    $this->{log}->trace("Done sending result in child task (id == ${task_id}) in process ${PID}");
+    close $miso
         or $this->{log}->logcluck("Can’t close writer side of child task miso channel: ${ERRNO}");
     $this->{log}->trace("Exiting child task (id == ${task_id}) in process ${PID}");
     exit 0;
@@ -182,14 +190,13 @@ sub _fork_and_run {
 
   # Still in the parent task
   $this->{log}->trace("Started child task (id == ${task_id}) with pid == ${pid}");
-  close $response_o
-      or $this->{log}->logcluck("Can’t close writer side of parent process miso channel: ${ERRNO}");
+  $miso->reader();
   my $task = Parallel::TaskExecutor::Task->new(
     untracked => $options{untracked},
     task_id => $task_id,
     runner => $this,
     state => 'running',
-    channel => $response_i,
+    channel => $miso,
     pid => $pid,
     parent => $PID,
     catch_error => $options{catch_error},);
@@ -197,7 +204,7 @@ sub _fork_and_run {
   $this->{tasks}{$task} = $task;
   weaken($this->{tasks}{$task});
 
-  my $ready = <$response_i>;
+  my $ready = <$miso>;
   $this->{log}->logcroak("Got unexpected data during ready check: $ready")
       unless $ready eq "ready\n";
 
@@ -265,7 +272,6 @@ B<forced> is set to true too).
 
 =back
 
-
 =cut
 
 Readonly::Scalar my $busy_loop_wait_time_us => 1000;
@@ -286,7 +292,7 @@ sub run {
   my $data = $executor->run_now($sub, %options);
 
 Runs the given I<$sub> in a forked process and waits for its result. This never
-block (the I<$sub> is run even if the executor max parallelism is already
+blocks (the I<$sub> is run even if the executor max parallelism is already
 reached) and this does not increase the counted parallelism of the executor
 either (in effect the B<untracked>, B<forced>, and B<wait> options are set to
 true).
@@ -296,8 +302,6 @@ scalar context, unless that option was explicitly passed to the run_now() call.
 
 =cut
 
-# Same as run but does not limit the parallelism and block until the command
-# has executed.
 sub run_now {
   my ($this, $sub, %options) = @_;
   $options{scalar} = 1 unless exists $options{scalar} || wantarray;

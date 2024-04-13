@@ -62,3 +62,6 @@ minimum_regex_length_to_complain_about = 30
 # system library.
 [ValuesAndExpressions::ProhibitMagicNumbers]
 allowed_values = -1 0 1 2
+
+[Variables::ProhibitPunctuationVars]
+allow = ${^GLOBAL_PHASE}

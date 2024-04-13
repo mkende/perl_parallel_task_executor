@@ -4,7 +4,7 @@ use utf8;
 
 use FindBin;
 use IO::Pipe;
-use Log::Log4perl::CommandLine;
+use Log::Log4perl::CommandLine ':all';
 use Parallel::TaskExecutor;
 use Test2::V0;
 
