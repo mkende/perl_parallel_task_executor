@@ -8,6 +8,10 @@ use Log::Log4perl::CommandLine ':all';
 use Parallel::TaskExecutor;
 use Test2::V0;
 
+# TODO: Remove this line once the following issue is fixe:
+# https://github.com/Test-More/test-more/issues/928
+Test2::API::test2_load if $^O eq 'MSWin32';
+
 sub new {
   return Parallel::TaskExecutor->new(@_);
 }
@@ -89,7 +93,7 @@ sub new {
   my $task = new()->run(sub {
     close $fo;
     <$fi>;
-    exec $^X, '-e', 'use Time::HiRes "usleep"; usleep(1000)';
+    exec $^X, "-e", "use Time::HiRes 'usleep'; usleep(1000)";
   });
   close $fi;
   is ($task->running(), T());
@@ -98,28 +102,32 @@ sub new {
   is ($task->running(), F());
 }
 
-{
-  my $task = new()->run(sub {
-    sleep 1 while 1;
-  }, catch_error => 1);
-  kill 'INT', $task->pid();
-  $task->wait();
-  is ($task->running(), F());
-  like(dies {$task->data()}, qr/failed/);
-}
+# Signal handling by the pseudo-process under Windows are not completely
+# predictable. So we don’t execute these tests under windows.
+unless ($^O eq 'MSWin32') {
+  {
+    my $task = new()->run(sub {
+      sleep 1 while 1;
+    }, catch_error => 1);
+    kill 'INT', $task->pid();
+    $task->wait();
+    is ($task->running(), F());
+    like(dies {$task->data()}, qr/failed/);
+  }
 
-{
-  my $mosi = IO::Pipe->new();  # from parent to child
-  my $task = new()->run(sub {
-    $mosi->reader();
-    $mosi->read(my $buf, 1);
-  }, SIG => { INT => 'IGNORE'});
-  $mosi->writer();
-  kill 'INT', $task->pid();
-  is ($task->running(), T());
-  $mosi->close();
-  $task->wait();
-  is ($task->running(), F());
+  {
+    my $mosi = IO::Pipe->new();  # from parent to child
+    my $task = new()->run(sub {
+      $mosi->reader();
+      $mosi->read(my $buf, 1);
+    }, SIG => { INT => 'IGNORE'});
+    $mosi->writer();
+    kill 'INT', $task->pid();
+    is ($task->running(), T());
+    $mosi->close();
+    $task->wait();
+    is ($task->running(), F());
+  }
 }
 
 done_testing;
