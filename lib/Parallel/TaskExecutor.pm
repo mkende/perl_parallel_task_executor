@@ -143,6 +143,9 @@ sub _fork_and_run {
 
   if ($pid == 0) {
     # In the child task
+    # TODO: the code here should be moved to the Task class. It would be clearer
+    # and probably allow a better separation of the properties of the Task class
+    # between those used by the executor or those used by the task.
     $miso->writer();
     $this->{log}->trace("Starting child task (id == ${task_id}) in process ${PID}");
 
@@ -359,6 +362,23 @@ sub set_max_parallel_tasks {
 1;
 
 =pod
+
+=head1 CAVEATS AND TODOS
+
+=over 4
+
+=item *
+
+The data returned by a child task can only have a limited size (4kB as of
+writing this). In a future release, we may switch to using temporary files to
+pass the result when this limit is reached.
+
+=item *
+
+There is currently no support to setup uni or bi-directional communication
+channel with the child task. This must be done manually by the user.
+
+=back
 
 =head1 AUTHOR
 
