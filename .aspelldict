@@ -1,4 +1,4 @@
-personal_ws-1.1 en 37 
+personal_ws-1.1 en 40 
 AnyEvent
 CPAN
 ERRNO
@@ -22,11 +22,14 @@ TODOS
 TaskExecutor
 TaskManager
 destructor
+init
 kB
 miso
 mosi
 nb
+perl
 pid
+qw
 ret
 sublicense
 sys
