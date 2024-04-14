@@ -224,8 +224,9 @@ sub _fork_and_run {
   weaken($this->{tasks}{$task});
 
   my $ready = <$miso>;
-  $this->{log}->logcroak("Got unexpected data during ready check: $ready")
-      unless $ready eq "ready\n";
+  $this->{log}->logcroak(
+    "Got unexpected data during ready check of child task (id == ${task_id}) with pid == ${pid}: $ready"
+  ) unless $ready eq "ready\n";
 
   if ($options{wait}) {
     $this->{log}->trace("Waiting for child $pid to exit (task id == ${task_id})");
