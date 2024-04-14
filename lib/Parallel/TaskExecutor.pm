@@ -20,7 +20,7 @@ our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 our @CARP_NOT = 'Parallel::TaskExecutor::Task';
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 my $log = Log::Log4perl->get_logger();
 

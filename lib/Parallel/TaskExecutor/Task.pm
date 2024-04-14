@@ -9,7 +9,7 @@ use Hash::Util 'lock_keys';
 use Log::Log4perl;
 use POSIX ':sys_wait_h';
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 my $log = Log::Log4perl->get_logger();
 
