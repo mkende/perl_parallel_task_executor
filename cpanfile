@@ -9,12 +9,12 @@ on 'configure' => sub {
 };
 
 on 'test' => sub {
-  requires 'CPAN::Common::Index::Mux::Ordered';
   requires 'Test::CPANfile';
   requires 'Test::More';
   requires 'Test2::V0';
   requires 'Readonly';
   recommends 'Test::Pod', '1.22';
+  recommends 'CPAN::Common::Index::Mux::Ordered';
   suggests 'IPC::Run3';  # Only used for spell-checking which is not included in the distribution
   suggests 'Test2::Tools::PerlCritic';
   suggests 'Perl::Tidy', '20220613';
