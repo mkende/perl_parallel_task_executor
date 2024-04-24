@@ -29,10 +29,9 @@ on 'develop' => sub {
 
 # End of the template. You can add custom content below this line.
 
-requires 'Log::Log4perl';
+requires 'Log::Any::Simple';
 requires 'Readonly';
 
 on 'test' => sub {
-  requires 'Log::Log4perl::CommandLine';
   requires 'Test2::IPC';
 };
