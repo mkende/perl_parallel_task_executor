@@ -10,7 +10,7 @@ use Log::Any::Simple ':default';
 use POSIX ':sys_wait_h';
 use Scalar::Util 'unweaken';
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 =pod
 
@@ -92,7 +92,7 @@ sub DESTROY {
       # would need to rely on isweak in the TaskExecutor DESTROY method).
       $this->{runner}{zombies}{$this} = $this;
       delete $this->{runner}{tasks}{$this};
-      # Once we are a zombie, we can be deleted only once done, so this codepath
+      # Once we are a zombie, we can be deleted only once done, so this code path
       # will not keep creating reference to the object.
     } else {
       $this->wait();
@@ -228,7 +228,7 @@ sub _try_wait {
   local ($ERRNO, $CHILD_ERROR) = (0, 0);
   my $pid = waitpid($this->{pid}, WNOHANG);
   if ($pid > 0 || $pid < -1) {  # Perl fake processes on Windows use negative PIDs.
-    # TODO: do the same validation on $pid than in the wait() method.
+                                # TODO: do the same validation on $pid than in the wait() method.
     $this->_process_done();
     return 1;
   }

@@ -1,4 +1,4 @@
-personal_ws-1.1 en 41 
+personal_ws-1.1 en 45 
 AnyEvent
 CPAN
 ERRNO
@@ -9,6 +9,7 @@ Kende
 MERCHANTABILITY
 NONINFRINGEMENT
 OO
+PIDs
 ProhibitBuiltinHomonyms
 ProhibitNoStrict
 ProhibitNoWarnings
@@ -24,6 +25,7 @@ TaskExecutor
 TaskManager
 destructor
 init
+isweak
 kB
 miso
 mosi
@@ -36,6 +38,8 @@ sublicense
 sys
 undef
 untracked
+unweaken
+unweakened
 usleep
 utf
 waitpid

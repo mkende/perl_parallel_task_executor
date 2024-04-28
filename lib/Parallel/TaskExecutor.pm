@@ -20,7 +20,7 @@ our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 our @CARP_NOT = 'Parallel::TaskExecutor::Task';
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 =pod
 
@@ -349,7 +349,7 @@ sub wait {  ## no critic (ProhibitBuiltinHomonyms)
     # $c is never weak here and wait() will also not delete from this hash
     # itself
     $c->wait();
-    delete $this->{zombies}{$c}; # $c is both the key and the value.
+    delete $this->{zombies}{$c};  # $c is both the key and the value.
   }
   while (my (undef, $c) = each %{$this->{tasks}}) {
     # $c can be a weak reference, but it should never be undef because the task
