@@ -226,7 +226,9 @@ sub _try_wait {
   return if $this->{state} ne 'running';
   trace("Starting non blocking waitpid($this->{pid})");
   local ($ERRNO, $CHILD_ERROR) = (0, 0);
-  if ((my $pid = waitpid($this->{pid}, WNOHANG)) > 0) {
+  my $pid = waitpid($this->{pid}, WNOHANG);
+  if ($pid > 0 || $pid < -1) {  # Perl fake processes on Windows use negative PIDs.
+    # TODO: do the same validation on $pid than in the wait() method.
     $this->_process_done();
     return 1;
   }
