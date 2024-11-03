@@ -56,6 +56,9 @@ minimum_regex_length_to_complain_about = 30
 [-RegularExpressions::RequireDotMatchAnything]
 [-RegularExpressions::RequireLineBoundaryMatching]
 
+# The ',' syntax is nicer than q{,} in my opinion.
+[-ValuesAndExpressions::ProhibitNoisyQuotes]
+
 # End of the template. You can add custom content below this line.
 
 # We add -1 to the default list as it’s a standard error return value from some

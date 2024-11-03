@@ -25,6 +25,8 @@ on 'test' => sub {
 on 'develop' => sub {
   recommends 'Devel::Cover';
   suggests 'CPAN::Uploader';
+  suggests 'PAR::Packer';
+  suggests 'Dist::Setup';
 };
 
 # End of the template. You can add custom content below this line.

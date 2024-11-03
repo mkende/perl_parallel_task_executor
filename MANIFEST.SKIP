@@ -16,6 +16,7 @@
 ^MANIFEST\.SKIP$
 ^README(\..*)?$
 ^blib/
+^build/
 ^cover_db/
 ^cpanfile\.snapshot$
 ^dist_setup\.conf$
@@ -25,6 +26,8 @@
 ^t/001-spelling.t
 ^third_party/
 ^pm_to_blib$
+^pod2htmd\.tmp$
+^pod2html/
 ^Parallel-TaskExecutor-[\d.]+/
 ^Parallel-TaskExecutor-[\d.]+\.tar\.gz
 .*\.bak
