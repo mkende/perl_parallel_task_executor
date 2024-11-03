@@ -20,7 +20,7 @@ our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 our @CARP_NOT = 'Parallel::TaskExecutor::Task';
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';  # Remember to change it in Task.pm too.
 
 =pod
 
@@ -77,7 +77,7 @@ can be created in total by this object instance.
 =back
 
 But all the options that can be passed to run() can also be passed to new() and
-they will apply to all the calls to this object (unless overidden in a specific
+they will apply to all the calls to this object (unless overridden in a specific
 call to run()).
 
 =cut
@@ -409,7 +409,7 @@ for more details.
 
 sub signal_all {
   my ($this, $signal) = @_;
-  # See the comment in wait() for why $c can never be undef altough it is a weak
+  # See the comment in wait() for why $c can never be undef although it is a weak
   # reference.
   kill $signal, map { $_->pid() } values %{$this->{tasks}}, values %{$this->{zombies}};
   return;
@@ -421,7 +421,7 @@ sub signal_all {
 
   $executor->kill_all();
 
-Same as L<signal_all()|/signal_all> but sends the C<SIKILL> signal by default.
+Same as L<signal_all()|/signal_all> but sends the C<SIGKILL> signal by default.
 You can still pass a specific signal if you want.
 
 =cut

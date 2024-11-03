@@ -10,7 +10,7 @@ use Log::Any::Simple ':default';
 use POSIX ':sys_wait_h';
 use Scalar::Util 'unweaken';
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';  # Remember to change it in TaskExecutor.pm too.
 
 =pod
 

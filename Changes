@@ -1,6 +1,6 @@
 Revision history for Perl distribution IPC-Perl
 
-0.05 - ??
+0.05 - 2024-11-03
 
  - Allow to send signals to child tasks.
 
