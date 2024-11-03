@@ -1,9 +1,10 @@
-personal_ws-1.1 en 45 
+personal_ws-1.1 en 46 
 AnyEvent
 CPAN
 ERRNO
 EVAL
 ForkManager
+HUP
 IPC
 Kende
 MERCHANTABILITY

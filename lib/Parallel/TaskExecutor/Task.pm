@@ -210,8 +210,8 @@ sub done {
   my $data = $task->get();
 
 Waits until the task is done and returns the result of the task. See the
-documentation of the wait() and data() methods for more details, in particular
-regarding scalar and list context data.
+documentation of the L<wait()|/wait> and L<data()|/data> methods for more
+details, in particular regarding scalar and list context data.
 
 =cut
 
@@ -271,9 +271,47 @@ sub _process_done {
   return;
 }
 
+# Undocumented because there is too much risk that the behavior of the library
+# would be broken if the user started doing weird thing with that.
 sub pid {
   my ($this) = @_;
   return $this->{pid};
+}
+
+=pod
+
+=head2 signal
+
+  $task->signal('HUP');
+
+Sends the given signal to the task. Signal can be anything accepted by the
+L<kill()|/kill SIGNAL> method, so either a signal name or a signal number. See
+L<kill()|/kill SIGNAL> for how to get the list of supported signals.
+
+=cut
+
+sub signal {
+  my ($this, $signal) = @_;
+  return if $this->{state} ne 'running';
+  trace("Sending signal ${signal} to process $this->{pid}");
+  kill $signal, $this->{pid};
+  return;
+}
+
+=pod
+
+=head2 kill
+
+  $task->kill();
+
+This is a synonym of L<signal()>|/signal> but where the default argument is
+'KILL'. You can still pass a different signal name if you want.
+
+=cut
+
+sub kill {  ## no critic (Subroutines::ProhibitBuiltinHomonyms)
+  my ($this, $signal) = (@_, 'KILL');
+  return $this->signal($signal);
 }
 
 1;
