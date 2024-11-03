@@ -120,7 +120,7 @@ jobs:
       run: |
          ls -l C:/Users/
          ls -l C:/Users/RUNNER~1/
-         cat C:/Users/runneradmin/.cpanm/work/*/build.log
+         cat C:/hostedtoolcache/windows/strawberry-perl/*/x64/data/.cpanm/work/*/build.log
 
     - name: Show Errors on MacOS
       if:  ${{ failure() && matrix.os == 'macos' }}

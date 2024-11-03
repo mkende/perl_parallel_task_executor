@@ -24,8 +24,8 @@ sub new {
   my $t = new()->run(sub {
     sleep 1 while 1;
   }, catch_error => 1,
-  SIG => {KILL => sub { exit 0 }});
-  $t->signal('KILL');
+  SIG => {HUP => sub { exit 0 }});
+  $t->signal('HUP');
   ok($t->wait());
   is($t->data(), undef);
 }

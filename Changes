@@ -1,5 +1,9 @@
 Revision history for Perl distribution IPC-Perl
 
+0.06 - ??
+
+ - Update to the latest Dist::Setup version and fixes some tests under Windows.
+
 0.05 - 2024-11-03
 
  - Allow to send signals to child tasks.
