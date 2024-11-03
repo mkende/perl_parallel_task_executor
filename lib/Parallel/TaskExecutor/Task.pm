@@ -288,6 +288,11 @@ Sends the given signal to the task. Signal can be anything accepted by the
 L<kill()|/kill SIGNAL> method, so either a signal name or a signal number. See
 L<kill()|/kill SIGNAL> for how to get the list of supported signals.
 
+Note that even if the signal kills the task you should still in general wait()
+for it at some point. Also, unless the task gracefully handles the signal, you
+will probably need to pass the C<catch_error> option to the run() call when the
+task is started, otherwise your whole program will be aborted.
+
 =cut
 
 sub signal {
@@ -305,7 +310,7 @@ sub signal {
   $task->kill();
 
 This is a synonym of L<signal()>|/signal> but where the default argument is
-'KILL'. You can still pass a different signal name if you want.
+C<SIGKILL>. You can still pass a different signal name if you want.
 
 =cut
 
