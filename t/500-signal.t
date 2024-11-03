@@ -6,6 +6,8 @@ use Parallel::TaskExecutor;
 use Test2::IPC;
 use Test2::V0;
 
+skip_all('Signals are not reliable under Windows') if $^O eq 'MSWin32';
+
 sub new {
   return Parallel::TaskExecutor->new(@_);
 }
@@ -22,8 +24,8 @@ sub new {
   my $t = new()->run(sub {
     sleep 1 while 1;
   }, catch_error => 1,
-  SIG => {HUP => sub { exit 0 }});
-  $t->signal('HUP');
+  SIG => {KILL => sub { exit 0 }});
+  $t->signal('KILL');
   ok($t->wait());
   is($t->data(), undef);
 }
