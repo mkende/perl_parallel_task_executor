@@ -240,7 +240,7 @@ sub _fork_and_run {
 
 Fork a new child process and use it to execute the given I<$sub>. The execution
 can be tracked using the returned I<$task> object of type
-L<Parallel::TaskManager::Task>.
+L<Parallel::TaskExecutor::Task>.
 
 If there are already B<max_parallel_tasks> tasks running, then the call will
 block until the count of running tasks goes below that limit.
